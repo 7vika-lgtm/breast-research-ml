@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reading Cell Measurements: Breast Cancer Diagnosis with Machine Learning</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,700&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+:root{--bg:#f6f7f9;--ink:#14232b;--mute:#52636b;--line:#d5dce0;--card:#fff;--rose:#b83a57;--teal:#1d6b74;--ben:#2f8f83;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1a1f;--ink:#e8eef0;--mute:#9bb0b8;--line:#26383f;--card:#16252b;--rose:#e0728c;--teal:#5fc0cb;--ben:#56c2b4}}
+:root[data-theme="dark"]{--bg:#0f1a1f;--ink:#e8eef0;--mute:#9bb0b8;--line:#26383f;--card:#16252b;--rose:#e0728c;--teal:#5fc0cb;--ben:#56c2b4}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.6 "IBM Plex Sans",system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:28px 20px 60px}
+h1,h2{font-family:Newsreader,Georgia,serif;line-height:1.15;margin:0}
+h1{font-size:clamp(2rem,7vw,3rem);font-weight:700;letter-spacing:-.01em}
+h2{font-size:1.6rem;margin:56px 0 12px}
+p{margin:0 0 14px;max-width:62ch}
+.lede{font-size:1.1rem;color:var(--mute);margin-top:14px}
+.demo{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-top:28px}
+canvas{width:100%;height:auto;display:block;border-radius:6px}
+.row{display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap}
+input[type=range]{flex:1;min-width:160px;accent-color:var(--rose)}
+.stats{display:flex;gap:10px;margin-top:12px}
+.stat{flex:1;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.stat b{display:block;font:700 1.6rem Newsreader,serif}
+.stat span{font-size:.85rem;color:var(--mute)}
+.fn b{color:var(--rose)}.fp b{color:var(--teal)}
+.note{font-size:.85rem;color:var(--mute);margin-top:10px}
+ol.steps{padding-left:20px;margin:0}
+ol.steps li{margin-bottom:10px;max-width:62ch}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:480px;font-size:.95rem}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:0}
+th{font-weight:500;color:var(--mute)}
+.btn{display:inline-block;background:var(--rose);color:#fff;text-decoration:none;font-weight:500;padding:11px 18px;border-radius:8px;margin:6px 8px 6px 0}
+.btn.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
+a:focus-visible,input:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+.warn{border-left:4px solid var(--rose);padding:6px 14px;background:var(--card);border-radius:0 8px 8px 0}
+footer{margin-top:56px;color:var(--mute);font-size:.85rem}
+</style>
+</head>
+<body>
+<main>
+<h1>Can a model tell a malignant mass from a benign one by its cells?</h1>
+<p class="lede">A machine learning study on 569 breast mass samples. We compare five models, tune for the fewest missed cancers, and check which cell measurements drive the answer.</p>
+
+<div class="demo">
+  <strong>Try the trade-off</strong>
+  <p style="margin:4px 0 10px;color:var(--mute)">Each dot is a sample. Move the slider to change how cautious the model is.</p>
+  <canvas id="c" width="680" height="300" role="img" aria-label="Scatter of benign and malignant samples with a movable decision line"></canvas>
+  <div class="row"><label for="t">Alert threshold</label><input id="t" type="range" min="-1.5" max="1.5" step="0.05" value="0"></div>
+  <div class="stats">
+    <div class="stat fn"><b id="fn">0</b><span>Missed cancers</span></div>
+    <div class="stat fp"><b id="fp">0</b><span>False alarms</span></div>
+  </div>
+  <p class="note">Illustrative simulated data, not results from the real dataset. Run the notebook for real numbers.</p>
+</div>
+
+<h2>The question</h2>
+<p>Doctors measure features of cell nuclei from a fine needle sample, such as radius, texture, area and concavity. We ask whether those measurements alone can separate malignant from benign masses, and how to build a model that rarely misses a cancer.</p>
+
+<h2>Method</h2>
+<ol class="steps">
+<li><b>Data.</b> Wisconsin Diagnostic Breast Cancer dataset: 569 samples, 30 numeric features, no missing values.</li>
+<li><b>Explore.</b> Compare feature distributions by diagnosis and map correlations between features.</li>
+<li><b>Split.</b> 80% train, 20% held-out test, stratified by diagnosis.</li>
+<li><b>Compare.</b> Five-fold cross-validation on logistic regression, SVM, KNN, random forest and gradient boosting.</li>
+<li><b>Tune.</b> Grid search on the SVM, scored by recall.</li>
+<li><b>Evaluate.</b> Confusion matrix, ROC curve and threshold analysis on the test set.</li>
+<li><b>Explain.</b> Permutation importance shows which features matter.</li>
+</ol>
+
+<h2>Models compared</h2>
+<div class="tablewrap"><table>
+<tr><th>Model</th><th>Why include it</th></tr>
+<tr><td>Logistic regression</td><td>Simple, readable baseline</td></tr>
+<tr><td>SVM (RBF)</td><td>Strong on small, scaled datasets</td></tr>
+<tr><td>KNN</td><td>Judges a sample by its nearest neighbors</td></tr>
+<tr><td>Random forest</td><td>Handles correlated features, ranks importance</td></tr>
+<tr><td>Gradient boosting</td><td>Often the most accurate on tables</td></tr>
+</table></div>
+
+<h2>Why recall comes first</h2>
+<p>A false alarm leads to more tests. A missed cancer delays treatment. So we tune for recall, then use the threshold analysis to see how many false alarms we accept to catch more cancers. The slider above shows the same idea.</p>
+
+<h2>Results</h2>
+<p>Run the notebook to produce your metrics, then add them here: best model, test recall, ROC AUC and the top features.</p>
+
+<h2>Limitations</h2>
+<p class="warn">This is an educational project, not a medical device. The dataset is small, comes from one source, and uses pre-extracted features. Results have not been validated on outside data.</p>
+
+<h2>Run it yourself</h2>
+<p>Upload the notebook to Google Colab and choose Runtime, then Run all. No downloads needed.</p>
+<a class="btn" href="https://colab.research.google.com/" rel="noopener">Open Google Colab</a>
+<a class="btn alt" href="https://archive.ics.uci.edu/dataset/17/breast+cancer+wisconsin+diagnostic" rel="noopener">Dataset on UCI</a>
+
+<footer>Data: Wolberg, Street and Mangasarian, UCI Machine Learning Repository.</footer>
+</main>
+<script>
+(function(){
+var cv=document.getElementById('c'),x=cv.getContext('2d'),t=document.getElementById('t');
+var s=7,r=function(){s=(s*16807)%2147483647;return s/2147483647};
+var g=function(){return (r()+r()+r()+r()-2)*1.7};
+var pts=[],i;
+for(i=0;i<90;i++)pts.push({m:0,a:-1+g()*.55,b:g()*.55});
+for(i=0;i<60;i++)pts.push({m:1,a:1+g()*.55,b:g()*.55});
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v)}
+function draw(){
+ var th=parseFloat(t.value),W=cv.width,H=cv.height,fn=0,fp=0;
+ x.clearRect(0,0,W,H);
+ var tx=(th+2.5)/5*W;
+ x.fillStyle=css('--rose')+'';x.globalAlpha=.1;x.fillRect(tx,0,W-tx,H);x.globalAlpha=1;
+ pts.forEach(function(p){
+  var px=(p.a+2.5)/5*W,py=H/2-p.b*70;
+  var flag=p.a>th;
+  if(p.m&&!flag)fn++; if(!p.m&&flag)fp++;
+  x.beginPath();x.arc(px,py,6,0,7);
+  x.fillStyle=p.m?css('--rose'):css('--ben');x.globalAlpha=.85;x.fill();
+  if(p.m&&!flag){x.globalAlpha=1;x.lineWidth=2;x.strokeStyle=css('--ink');x.stroke()}
+ });
+ x.globalAlpha=1;x.strokeStyle=css('--ink');x.lineWidth=2;x.beginPath();x.moveTo(tx,0);x.lineTo(tx,H);x.stroke();
+ document.getElementById('fn').textContent=fn;document.getElementById('fp').textContent=fp;
+}
+t.addEventListener('input',draw);
+matchMedia('(prefers-color-scheme:dark)').addEventListener('change',draw);
+draw();
+})();
+</script>
+</body>
+</html>
